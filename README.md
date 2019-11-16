@@ -26,7 +26,7 @@
 3. Use private key to generate a certificate
    1. `$ openssl req -new -key keys/jdoe.key  -out keys/jdoe.csr -subj "/CN=jdoe/O=devs"`
    2. CN is the username and O represents organization.
-4. Final certificate wiil be creates using Cluster's certificate authotiry (CA). It is responsible for approving the request and generating the necessoury certificate for user to access the cluster.
+4. Final certificate wil be creates using Cluster's certificate authotiry (CA). It is responsible for approving the request and generating the necessoury certificate for user to access the cluster.
 5. If you are uisng Minikube the authority is already produced for user as part of cluster creation. It should be in direcory called .minikube in linux home folder.
    1. `$ ls -1 ~/.minikube/ca.*` 
    2. Output
@@ -373,3 +373,81 @@
         ```
     3. `$ kubectl auth can-i "*" "*"`
     4. Output is : `yes`
+
+## Creating Role Bindings And Cluster Role Bindings 
+Role Binding bind a user or a group or a service accout to a role or cluster role.
+1. Creating Role Dinding that will allow user(above) to view all the objects in the default namesapce.
+   1. `$ kubectl create rolebinding jdoe --clusterrole view --user jdoe --namespace default --save-config` (current context should be minikube)
+   2. `$ kubectl get rolebindings`
+   3. Output : 
+      ```
+      NAME   AGE
+      jdoe   42s
+      ```
+   4. Lets look at the details of newly created role binding `$ kubectl describe rolebinding jdoe`.
+   5. Output :
+      ```
+        Name:         jdoe
+        Labels:       <none>
+        Annotations:  kubectl.kubernetes.io/last-applied-configuration:
+                        {"kind":"RoleBinding","apiVersion":"rbac.authorization.k8s.io/v1","metadata":{"name":"jdoe","creationTimestamp":null},"subjects":[{"kind":...
+        Role:
+        Kind:  ClusterRole
+        Name:  view
+        Subjects:
+        Kind  Name  Namespace
+        ----  ----  ---------
+        User  jdoe  
+      ```
+    6. Remember role binding is always tied to a specific namespace. lets confirm that by using below command.
+    7. `$ kubectl --namespace kube-system describe rolebinding jdoe`
+    8. output: `Error from server (NotFound): rolebindings.rbac.authorization.k8s.io "jdoe" not found`     
+    9. Lets verify that permission are set correcly.
+    10. Lets check if the user (jdoe) can get all pods from the default Namespace.
+    11. `$ kubectl auth can-i get pods --as jdoe`
+    12. output : `yes`
+    13. Now lets check if the user (jdoe) can get pods from all Namespace.
+    14. `$ kubectl auth can-i get pods --as jdoe --all-namespaces`
+    15. output `no`
+    16. To give user a cluster-wide permissions, we have to delete rolebinding created in previous steps.
+    17. `$ kubectl delete rolebinding jdoe`
+    18. Output : `rolebinding.rbac.authorization.k8s.io "jdoe" deleted`
+2. To Change Users (jdoe) view permissions so that they are applied accross the whole cluster. we will define ClusterRoleBinding resource in YAML file known as crb-view.yml.
+   1. Creting role defined in crb-view.yml `$ kubectl create -f crb-view.yml --record --save-config`
+   2. Output : `clusterrolebinding.rbac.authorization.k8s.io/view create`
+   3. Lets validate that everything looks correct by describing the newly created role `$ kubectl describe clusterrolebinding view`.
+   4. Output :
+        ```
+            Name:         view
+            Labels:       <none>
+            Annotations:  kubectl.kubernetes.io/last-applied-configuration:
+                            {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRoleBinding","metadata":{"annotations":{},"name":"view"},"roleRef":{"apiGroup"...
+                        kubernetes.io/change-cause: kubectl create --filename=crb-view.yml --record=true --save-config=true
+            Role:
+            Kind:  ClusterRole
+            Name:  view
+            Subjects:
+            Kind  Name  Namespace
+            ----  ----  ---------
+            User  jdoe
+        ```
+    5. Now lets check again if the user (jdoe) can get pods from all Namespace. `$ kubectl auth can-i get pods --as jdoe --all-namespaces`
+    6. Output : `yes` confirming that jdoe can view the pods in all-namesapce.
+3. User want to perform actions that will help them develop and test their application without affecting other users of the cluster. Such request from users provides an excellent opportunity to combine Namespase with Role Bindings. In this section we will create dev Namesapce and allow selected grop of users to do almost anything in it. 
+   1. lets explore rd-dev.yml file to understand Namespace with role binding.
+   2. Lets create new resource `$ kubectl create -f rb-dev.yml --record --save-config`
+   3. Output :
+        ```
+        namespace/dev created
+        rolebinding.rbac.authorization.k8s.io/dev created
+        ```
+   4. We can see that the Namespace dev and the RoleBinding is created. Now lets verify that the user jdoe can create and delete Deployemtnts using below cammands.
+   5. `$ kubectl --namespace dev auth can-i create deployments --as jdoe`
+   6. Output : `yes`
+   7. `$ kubectl --namespace dev auth can-i delete deployments --as jdoe`
+   8. Output : `yes` 
+   9. The above output of both the commands confirm that user jdoe can perform create and delete actions with Deployments.
+   10. Cluster-admin role covers all the permissions, but the user jdeo doen not icludes all resources nad verbs.
+   11. `$ kubectl --namespace dev auth can-i "*" "*" --as jdoe`
+   12. Output : `no`  which indicates there re still few opertions are forbidden to user jdoe.
+   13. 
