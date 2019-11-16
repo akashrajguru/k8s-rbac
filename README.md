@@ -450,4 +450,5 @@ Role Binding bind a user or a group or a service accout to a role or cluster rol
    10. Cluster-admin role covers all the permissions, but the user jdeo doen not icludes all resources nad verbs.
    11. `$ kubectl --namespace dev auth can-i "*" "*" --as jdoe`
    12. Output : `no`  which indicates there re still few opertions are forbidden to user jdoe.
-   13. 
+   13. Allowing User (jdoe) permission to create its own Namespace.
+   14. 
